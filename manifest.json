@@ -1,0 +1,31 @@
+{
+  "id": "kid-growth-journal",
+  "name": "Growth Journal",
+  "version": "1.0.0",
+  "description": "A keepsake for each kid: the same interview questions every birthday, height marks, a photo per year — plus a live \"current sizes\" card grandparents can read before buying clothes or gifts.",
+  "entrypoint": "index.html",
+  "runtime": "static",
+  "icon": "🌱",
+  "category": "family",
+  "tags": ["kids", "journal", "keepsake", "growth", "milestones", "family"],
+  "storage": "db",
+  "data_access": {
+    "reads": ["family.members"],
+    "writes": []
+  },
+  "permissions": {
+    "default_audience": "everyone",
+    "requires_approval": false
+  },
+  "row_policies": {
+    "entries": { "kind": "adult_writable" },
+    "sizes": { "kind": "adult_writable" }
+  },
+  "publishes": ["growth_journal.entry_added"],
+  "nav": { "label": "Growth Journal" },
+  "resource_limits": {
+    "max_db_bytes": 52428800,
+    "max_file_bytes": 10485760,
+    "max_files_bytes": 524288000
+  }
+}

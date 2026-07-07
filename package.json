@@ -1,0 +1,16 @@
+{
+  "name": "chickadeebandit-kid-growth-journal",
+  "version": "1.0.0",
+  "description": "Kid growth journal and annual interview app for Chickadee Bandit",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "node dev.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "vitest": "^3.2.4"
+  }
+}
