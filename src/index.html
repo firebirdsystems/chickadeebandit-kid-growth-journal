@@ -71,6 +71,7 @@
 
 <script type="module">
 import { esc, isAdult, memberColor, initial, hubConfirm, createFilesHelper } from "/hub-sdk.js";
+import { QUESTIONS, SIZE_FIELDS, fmtHeight, kidById as kidByIdOf, sizeFor as sizeForOf } from "./logic.js";
 
 const CONTEXT = window.__CONTEXT_URL ?? "";
 const DB = window.__DB_URL ?? "";
@@ -78,27 +79,6 @@ const EVENTS_URL = window.__EVENTS_URL ?? "/api/events";
 const APP_ID = window.__APP_ID ?? "kid-growth-journal";
 const HUB_MEMBER = window.__CURRENT_MEMBER ?? null;
 const files = createFilesHelper(window.__FILES_URL ?? "");
-
-const QUESTIONS = [
-  "How old are you?",
-  "What is your favorite color?",
-  "What is your favorite food?",
-  "What do you want to be when you grow up?",
-  "Who is your best friend?",
-  "What is your favorite thing to do?",
-  "What is your favorite book, show, or game?",
-  "What always makes you happy?",
-  "What are you really good at?",
-  "What do you love most about our family?",
-];
-
-const SIZE_FIELDS = [
-  { key: "shirt", label: "Shirt" },
-  { key: "pants", label: "Pants" },
-  { key: "shoe", label: "Shoe" },
-  { key: "coat", label: "Coat" },
-  { key: "other", label: "Other" },
-];
 
 let members = [], me = null, kids = [];
 let entries = [], sizes = [];
@@ -108,12 +88,6 @@ function nowIso() { return new Date().toISOString(); }
 function uid(p) { return `${p}-${crypto.randomUUID()}`; }
 function today() { return new Date().toISOString().slice(0, 10); }
 function canEdit() { return isAdult(me); }
-function fmtHeight(inches) {
-  if (!inches && inches !== 0) return "";
-  const n = Number(inches); if (!n) return "";
-  const ft = Math.floor(n / 12), rem = Math.round((n % 12) * 10) / 10;
-  return ft ? `${ft}′${rem}″` : `${rem}″`;
-}
 
 async function db(sql, params = []) {
   if (!DB) return { rows: [] };
@@ -174,8 +148,8 @@ function publish(type, payload) {
   fetch(EVENTS_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source_app_id: APP_ID, type, payload }) }).catch(() => {});
 }
 function showError(msg) { error = msg; render(); }
-function kidById(id) { return kids.find(k => k.id === id) ?? members.find(m => m.id === id) ?? null; }
-function sizeFor(kidId) { return sizes.find(s => s.kid_id === kidId) ?? null; }
+function kidById(id) { return kidByIdOf(kids, members, id); }
+function sizeFor(kidId) { return sizeForOf(sizes, kidId); }
 
 /* ── modal ── */
 function openModal(html) {
