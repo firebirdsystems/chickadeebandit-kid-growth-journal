@@ -1,5 +1,6 @@
 {
   "id": "kid-growth-journal",
+  "contexts": ["household", "shared_space"],
   "name": "Growth Journal",
   "version": "1.0.0",
   "description": "A keepsake for each kid: the same interview questions every birthday, height marks, a photo per year — plus a live \"current sizes\" card grandparents can read before buying clothes or gifts.",
