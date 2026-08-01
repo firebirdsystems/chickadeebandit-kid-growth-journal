@@ -22,7 +22,16 @@
     "entries": { "kind": "adult_writable" },
     "sizes": { "kind": "adult_writable" }
   },
+  "member_references": {
+    "entries": {
+      "column": "created_by",
+      "on_removed": "keep"
+    }
+  },
   "publishes": ["growth_journal.entry_added"],
+  "publish_acls": {
+    "growth_journal.entry_added": { "require_role": "adult" }
+  },
   "nav": { "label": "Growth Journal" },
   "resource_limits": {
     "max_db_bytes": 52428800,
