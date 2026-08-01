@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { QUESTIONS, SIZE_FIELDS, fmtHeight, kidById, sizeFor } from "../src/logic.js";
+import { QUESTIONS, SIZE_FIELDS, fmtHeight, kidById, sizeFor, searchableFields, interviewText } from "../src/logic.js";
 
 describe("fmtHeight", () => {
   it("empty for blank/zero", () => {
@@ -37,5 +37,22 @@ describe("constants", () => {
   it("expose interview questions and size fields", () => {
     expect(QUESTIONS.length).toBe(10);
     expect(SIZE_FIELDS.map(f => f.key)).toEqual(["shirt", "pants", "shoe", "coat", "other"]);
+  });
+});
+
+describe("interviewText / searchableFields", () => {
+  it("flattens the stored interview JSON so the answers are searchable", () => {
+    const raw = JSON.stringify([{ q: "What do you want to be?", a: "A marine biologist" }]);
+    expect(interviewText(raw)).toContain("A marine biologist");
+  });
+
+  it("returns empty text for a malformed blob rather than throwing", () => {
+    expect(interviewText("not json")).toBe("");
+  });
+
+  it("offers the interview text alongside the note", () => {
+    const fields = searchableFields({ note: "lost a tooth", age_label: "Age 6", entry_date: "2026-03-04" }, "A marine biologist");
+    expect(fields).toContain("A marine biologist");
+    expect(fields).toContain("lost a tooth");
   });
 });
