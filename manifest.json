@@ -1,17 +1,29 @@
 {
   "id": "kid-growth-journal",
-  "contexts": ["household", "shared_space"],
+  "contexts": [
+    "household",
+    "shared_space"
+  ],
   "name": "Growth Journal",
-  "version": "1.0.0",
-  "description": "A keepsake for each kid: the same interview questions every birthday, height marks, a photo per year — plus a live \"current sizes\" card grandparents can read before buying clothes or gifts.",
+  "version": "1.1.0",
+  "description": "A keepsake for each kid: the same interview questions every birthday, height marks, a photo per year \u2014 plus a live \"current sizes\" card grandparents can read before buying clothes or gifts.",
   "entrypoint": "index.html",
   "runtime": "static",
-  "icon": "🌱",
+  "icon": "\ud83c\udf31",
   "category": "family",
-  "tags": ["kids", "journal", "keepsake", "growth", "milestones", "family"],
+  "tags": [
+    "kids",
+    "journal",
+    "keepsake",
+    "growth",
+    "milestones",
+    "family"
+  ],
   "storage": "db",
   "data_access": {
-    "reads": ["family.members"],
+    "reads": [
+      "family.members"
+    ],
     "writes": []
   },
   "permissions": {
@@ -19,8 +31,17 @@
     "requires_approval": false
   },
   "row_policies": {
-    "entries": { "kind": "adult_writable" },
-    "sizes": { "kind": "adult_writable" }
+    "entries": {
+      "kind": "adult_writable"
+    },
+    "sizes": {
+      "kind": "adult_writable"
+    }
+  },
+  "delete_file_columns": {
+    "entries": [
+      "photo_id"
+    ]
   },
   "member_references": {
     "entries": {
@@ -28,11 +49,17 @@
       "on_removed": "keep"
     }
   },
-  "publishes": ["growth_journal.entry_added"],
+  "publishes": [
+    "growth_journal.entry_added"
+  ],
   "publish_acls": {
-    "growth_journal.entry_added": { "require_role": "adult" }
+    "growth_journal.entry_added": {
+      "require_role": "adult"
+    }
   },
-  "nav": { "label": "Growth Journal" },
+  "nav": {
+    "label": "Growth Journal"
+  },
   "resource_limits": {
     "max_db_bytes": 52428800,
     "max_file_bytes": 10485760,

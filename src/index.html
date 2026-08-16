@@ -227,8 +227,12 @@ async function deleteEntry(id) {
   const en = entries.find(x => x.id === id);
   if (!(await hubConfirm({ message: "Delete this entry?", destructive: true, confirmLabel: "Delete" }))) return;
   try {
+    // The photo goes with the row: `manifest.delete_file_columns` has the hub
+    // read `photo_id` off the doomed row and queue the R2 reclaim in the same
+    // transaction. The trailing `files.delete(...).catch()` this replaces was
+    // not awaited at all, so a closed tab between the two calls left the bytes
+    // with no row to name them by — invisible to every view, and still billed.
     if (DB) await db("DELETE FROM app_kid_growth_journal__entries WHERE id=?", [id]);
-    if (en?.photo_id) files.delete(en.photo_id).catch(() => {});
     entries = entries.filter(x => x.id !== id); render();
   } catch (e) { showError(e.message); }
 }
