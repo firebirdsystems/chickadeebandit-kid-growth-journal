@@ -20,6 +20,10 @@
     "family"
   ],
   "storage": "db",
+  "preload": {
+    "entries": {"sql": "SELECT * FROM app_kid_growth_journal__entries ORDER BY entry_date DESC"},
+    "sizes": {"sql": "SELECT * FROM app_kid_growth_journal__sizes"}
+  },
   "data_access": {
     "reads": [
       "family.members"
