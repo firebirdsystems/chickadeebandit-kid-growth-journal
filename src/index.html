@@ -77,7 +77,7 @@
 <div class="app"><div id="root" class="empty">Loading…</div></div>
 
 <script type="module">
-import { esc, isAdult, memberColor, initial, hubConfirm, createFilesHelper, searchMatch } from "/hub-sdk.js";
+import { esc, isAdult, memberColor, initial, hubConfirm, createFilesHelper, searchMatch, hubToday as today } from "/hub-sdk.js";
 import { QUESTIONS, SIZE_FIELDS, fmtHeight, kidById as kidByIdOf, sizeFor as sizeForOf, searchableFields, interviewText } from "./logic.js";
 
 const CONTEXT = window.__CONTEXT_URL ?? "";
@@ -94,7 +94,6 @@ let searchQ = "";       // in-app search (see logic.js searchableFields)
 
 function nowIso() { return new Date().toISOString(); }
 function uid(p) { return `${p}-${crypto.randomUUID()}`; }
-function today() { return new Date().toISOString().slice(0, 10); }
 function canEdit() { return isAdult(me); }
 
 async function db(sql, params = []) {
