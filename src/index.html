@@ -35,19 +35,19 @@
     .btn:hover { background: var(--accent-hover); } .btn:disabled { opacity: .5; cursor: default; }
     .btn-ghost { background: transparent; color: var(--text); border-color: var(--border-mid); }
     .btn-ghost:hover { background: var(--bg); }
-    .btn-danger { background: #fee2e2; color: #b91c1c; }
+    .btn-danger { background: var(--hub-tint-danger, #fee2e2); color: var(--hub-tint-danger-fg, #b91c1c); }
     .btn-sm { min-height: 31px; padding: 5px 9px; font-size: .78rem; }
     .timeline { position: relative; }
     .entry { display: grid; grid-template-columns: 96px 1fr; gap: 14px; margin-bottom: 16px; }
-    .entry-photo { width: 96px; height: 96px; border-radius: 12px; object-fit: cover; background: #f1f5f9 center/cover; display: flex; align-items: center; justify-content: center; font-size: 1.6rem; color: #94a3b8; }
+    .entry-photo { width: 96px; height: 96px; border-radius: 12px; object-fit: cover; background: var(--bg) center/cover; display: flex; align-items: center; justify-content: center; font-size: 1.6rem; color: #94a3b8; }
     .entry-body { }
-    .age-badge { display: inline-block; background: #dcfce7; color: #15803d; font-weight: 800; border-radius: 999px; padding: 2px 10px; font-size: .8rem; }
+    .age-badge { display: inline-block; background: var(--hub-tint-success, #dcfce7); color: var(--hub-tint-success-fg, #15803d); font-weight: 800; border-radius: 999px; padding: 2px 10px; font-size: .8rem; }
     .measure { color: var(--muted); font-size: .82rem; margin: 4px 0; }
     .qa { margin: 4px 0; font-size: .88rem; }
     .qa .q { color: var(--muted); }
     .qa .a { font-weight: 600; }
     .empty { text-align: center; padding: 34px 16px; color: var(--muted); }
-    .error { background: #fee2e2; color: #b91c1c; padding: 9px 12px; border-radius: 8px; margin-bottom: 10px; font-size: .86rem; }
+    .error { background: var(--hub-tint-danger, #fee2e2); color: var(--hub-tint-danger-fg, #b91c1c); padding: 9px 12px; border-radius: 8px; margin-bottom: 10px; font-size: .86rem; }
     .field { display: grid; gap: 4px; margin-bottom: 12px; }
     .two { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
     label { font-size: .74rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 800; }
