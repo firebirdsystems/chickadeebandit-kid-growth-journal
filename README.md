@@ -1,5 +1,7 @@
 # Growth Journal
 
+A [Chickadee Bandit](https://chickadeebandit.com/app-library/kid-growth-journal) app.
+
 A keepsake app for each kid — cheap to build, high sentimental retention.
 
 - **The same interview, every year** — ten fixed questions asked on each birthday, so you can watch
