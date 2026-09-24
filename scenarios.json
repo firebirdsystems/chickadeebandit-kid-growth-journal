@@ -1,0 +1,108 @@
+{
+  "scenarios": [
+    {
+      "name": "kids and relatives can read the journal and sizes card, but only adults write them",
+      "members": { "parent": "adult", "kid": "child" },
+      "steps": [
+        {
+          "action": "db",
+          "as": "parent",
+          "sql": "INSERT INTO app_kid_growth_journal__entries (id, kid_id, kid_name, entry_date, age_label, height_in, weight_lb, created_by, created_by_name, created_at) VALUES ('e1', ?, 'Sam', '2026-01-01', 'Age 7', 48.5, 52, ?, 'Parent', '2026-01-01T00:00:00Z')",
+          "params": ["{{kid}}", "{{parent}}"],
+          "expect": { "status": 200 }
+        },
+        {
+          "action": "db",
+          "as": "parent",
+          "sql": "INSERT INTO app_kid_growth_journal__sizes (kid_id, kid_name, shirt, shoe, updated_by_name, updated_at) VALUES (?, 'Sam', 'YM', '1Y', 'Parent', '2026-01-01T00:00:00Z')",
+          "params": ["{{kid}}"],
+          "expect": { "status": 200 }
+        },
+        {
+          "action": "db",
+          "as": "kid",
+          "sql": "SELECT id, height_in FROM app_kid_growth_journal__entries",
+          "expect": { "status": 200, "rowCount": 1, "rowsContain": [{ "id": "e1", "height_in": 48.5 }] }
+        },
+        {
+          "action": "db",
+          "as": "kid",
+          "sql": "SELECT kid_id, shirt FROM app_kid_growth_journal__sizes",
+          "expect": { "status": 200, "rowCount": 1, "rowsContain": [{ "kid_id": "scn-kid", "shirt": "YM" }] }
+        },
+        {
+          "action": "db",
+          "as": "kid",
+          "sql": "INSERT INTO app_kid_growth_journal__entries (id, kid_id, kid_name, entry_date, created_by, created_by_name, created_at) VALUES ('e2', ?, 'Sam', '2026-01-02', ?, 'Sam', '2026-01-02T00:00:00Z')",
+          "params": ["{{kid}}", "{{kid}}"],
+          "expect": { "status": 403 }
+        },
+        {
+          "action": "db",
+          "as": "kid",
+          "sql": "UPDATE app_kid_growth_journal__sizes SET shirt = 'XXL' WHERE kid_id = ?",
+          "params": ["{{kid}}"],
+          "expect": { "status": 403 }
+        },
+        {
+          "action": "db",
+          "as": "kid",
+          "sql": "DELETE FROM app_kid_growth_journal__entries WHERE id = 'e1'",
+          "expect": { "status": 403 }
+        },
+        {
+          "action": "db",
+          "as": "parent",
+          "sql": "SELECT e.id, s.shirt FROM app_kid_growth_journal__entries e JOIN app_kid_growth_journal__sizes s ON s.kid_id = e.kid_id",
+          "expect": { "status": 200, "rowCount": 1, "rowsContain": [{ "id": "e1", "shirt": "YM" }] }
+        }
+      ]
+    },
+    {
+      "name": "the sizes card is one row per kid",
+      "members": { "parent": "adult", "kid": "child" },
+      "steps": [
+        {
+          "action": "db",
+          "as": "parent",
+          "sql": "INSERT INTO app_kid_growth_journal__sizes (kid_id, kid_name, shirt) VALUES (?, 'Sam', 'YS')",
+          "params": ["{{kid}}"],
+          "expect": { "status": 200 }
+        },
+        {
+          "action": "db",
+          "as": "parent",
+          "sql": "INSERT INTO app_kid_growth_journal__sizes (kid_id, kid_name, shirt) VALUES (?, 'Sam', 'YM')",
+          "params": ["{{kid}}"],
+          "expect": { "status": 400 }
+        },
+        {
+          "action": "db",
+          "as": "parent",
+          "sql": "SELECT shirt FROM app_kid_growth_journal__sizes",
+          "expect": { "status": 200, "rowCount": 1, "rowsContain": [{ "shirt": "YS" }] }
+        }
+      ]
+    },
+    {
+      "name": "only adults may announce a new journal entry",
+      "members": { "parent": "adult", "kid": "child" },
+      "steps": [
+        {
+          "action": "publish",
+          "as": "kid",
+          "type": "growth_journal.entry_added",
+          "payload": { "kid_id": "kid-1", "age_label": "Age 7" },
+          "expect": { "status": 403 }
+        },
+        {
+          "action": "publish",
+          "as": "parent",
+          "type": "growth_journal.entry_added",
+          "payload": { "kid_id": "kid-1", "age_label": "Age 7" },
+          "expect": { "status": 201 }
+        }
+      ]
+    }
+  ]
+}
