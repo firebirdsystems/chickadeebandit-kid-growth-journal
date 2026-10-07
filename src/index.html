@@ -77,7 +77,7 @@
 <div class="app"><div id="root" class="empty">Loading…</div></div>
 
 <script type="module">
-import { esc, isAdult, memberColor, initial, hubConfirm, createFilesHelper, searchMatch, hubToday as today } from "/hub-sdk.js";
+import { esc, isAdult, memberColor, initial, hubConfirm, createFilesHelper, searchMatch, hubToday as today, glyph } from "/hub-sdk.js";
 import { QUESTIONS, SIZE_FIELDS, fmtHeight, kidById as kidByIdOf, sizeFor as sizeForOf, searchableFields, interviewText } from "./logic.js";
 
 const CONTEXT = window.__CONTEXT_URL ?? "";
@@ -175,7 +175,7 @@ function entryModal() {
   const kid = kidById(selectedKid);
   const uploadHtml = window.__FILES_URL ? `
     <div class="field"><label>Photo of the year (or a handprint!)</label>
-      <label class="upload-area" for="f-photo">📷 Attach a photo</label>
+      <label class="upload-area" for="f-photo">${glyph("camera")} Attach a photo</label>
       <input id="f-photo" type="file" accept="image/*" style="display:none">
       <img id="photo-preview" style="display:none;margin-top:8px;max-width:100%;border-radius:8px"></div>` : "";
   openModal(`
@@ -277,9 +277,9 @@ function renderSizes(kid) {
   return `
     <div class="card sizes-card">
       <div class="topbar" style="margin-bottom:6px">
-        <h2>📐 Current sizes</h2>
+        <h2>${glyph("shirt")} Current sizes</h2>
         <div style="display:flex;gap:6px">
-          <button class="btn btn-ghost btn-sm" data-wishlist>🎁 Wishlist</button>
+          <button class="btn btn-ghost btn-sm" data-wishlist>${glyph("gift")} Wishlist</button>
           ${canEdit() ? `<button class="btn btn-sm" data-sizes>${filled ? "Update" : "Add sizes"}</button>` : ""}
         </div>
       </div>
@@ -296,15 +296,15 @@ function renderSizes(kid) {
 function renderEntry(en) {
   let qa = [];
   try { qa = JSON.parse(en.interview || "[]"); } catch { qa = []; }
-  const photo = en.photo_id ? `<img class="entry-photo" src="${esc(files.url(en.photo_id))}" alt="">` : `<div class="entry-photo">🌱</div>`;
-  const measures = [en.height_in ? `📏 ${esc(fmtHeight(en.height_in))}` : "", en.weight_lb ? `⚖️ ${esc(String(en.weight_lb))} lb` : ""].filter(Boolean).join(" · ");
+  const photo = en.photo_id ? `<img class="entry-photo" src="${esc(files.url(en.photo_id))}" alt="">` : `<div class="entry-photo">${glyph("sprout")}</div>`;
+  const measures = [en.height_in ? `${glyph("ruler")} ${esc(fmtHeight(en.height_in))}` : "", en.weight_lb ? `${glyph("scales")} ${esc(String(en.weight_lb))} lb` : ""].filter(Boolean).join(" · ");
   return `
     <div class="entry">
       ${photo}
       <div class="entry-body">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
           <span class="age-badge">${esc(en.age_label || en.entry_date)}</span>
-          ${canEdit() ? `<button class="btn-ghost btn-sm btn" data-del-entry="${esc(en.id)}" style="border:0;color:var(--muted)">🗑️</button>` : ""}
+          ${canEdit() ? `<button class="btn-ghost btn-sm btn" data-del-entry="${esc(en.id)}" style="border:0;color:var(--muted)" aria-label="Delete entry">${glyph("trash")}</button>` : ""}
         </div>
         <div class="measure">${esc(en.entry_date)}${measures ? ` · ${measures}` : ""}</div>
         ${qa.map(x => `<div class="qa"><span class="q">${esc(x.q)}</span> <span class="a">${esc(x.a)}</span></div>`).join("")}
@@ -327,7 +327,7 @@ function render() {
   const root = document.getElementById("root");
   root.className = "";
   if (!kids.length) {
-    root.innerHTML = `<div class="topbar"><h1>🌱 Growth Journal</h1></div><div class="empty">Add family members to start a journal for each kid.</div>`;
+    root.innerHTML = `<div class="topbar"><h1>${glyph("sprout")} Growth Journal</h1></div><div class="empty">Add family members to start a journal for each kid.</div>`;
     return;
   }
   const kid = kidById(selectedKid);
@@ -337,7 +337,7 @@ function render() {
     : allKidEntries;
   root.innerHTML = `
     <div class="topbar">
-      <div><h1>🌱 Growth Journal</h1><p class="muted tiny">A keepsake that grows with them.</p></div>
+      <div><h1>${glyph("sprout")} Growth Journal</h1><p class="muted tiny">A keepsake that grows with them.</p></div>
       ${canEdit() && kid ? `<button class="btn" data-add>+ Add entry</button>` : ""}
     </div>
     ${error ? `<div class="error">${esc(error)}</div>` : ""}
