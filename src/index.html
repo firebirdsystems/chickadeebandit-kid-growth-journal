@@ -40,6 +40,9 @@
     .timeline { position: relative; }
     .entry { display: grid; grid-template-columns: 96px 1fr; gap: 14px; margin-bottom: 16px; }
     .entry-photo { width: 96px; height: 96px; border-radius: 12px; object-fit: cover; background: var(--bg) center/cover; display: flex; align-items: center; justify-content: center; font-size: 1.6rem; color: #94a3b8; }
+    /* A cutout is transparent and drawn whole, never cropped to fill. */
+    .entry-photo.cutout { object-fit: contain; }
+    .entry-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 4px; }
     .entry-body { }
     .age-badge { display: inline-block; background: var(--hub-tint-success, #dcfce7); color: var(--hub-tint-success-fg, #15803d); font-weight: 800; border-radius: 999px; padding: 2px 10px; font-size: .8rem; }
     .measure { color: var(--muted); font-size: .82rem; margin: 4px 0; }
@@ -78,7 +81,10 @@
 
 <script type="module">
 import { esc, isAdult, memberColor, initial, hubConfirm, createFilesHelper, searchMatch, hubToday as today, glyph } from "/hub-sdk.js";
-import { QUESTIONS, SIZE_FIELDS, fmtHeight, kidById as kidByIdOf, sizeFor as sizeForOf, searchableFields, interviewText } from "./logic.js";
+import {
+  QUESTIONS, SIZE_FIELDS, fmtHeight, kidById as kidByIdOf, sizeFor as sizeForOf, searchableFields, interviewText,
+  tilePhotoId, cutoutRefusal,
+} from "./logic.js";
 
 const CONTEXT = window.__CONTEXT_URL ?? "";
 const DB = window.__DB_URL ?? "";
@@ -91,6 +97,8 @@ let members = [], me = null, kids = [];
 let entries = [], sizes = [];
 let selectedKid = null, error = "", modalEl = null;
 let searchQ = "";       // in-app search (see logic.js searchableFields)
+// The entry whose photo is having its background removed or put back, if any.
+let cutoutBusy = "";
 
 function nowIso() { return new Date().toISOString(); }
 function uid(p) { return `${p}-${crypto.randomUUID()}`; }
@@ -208,14 +216,15 @@ async function submitEntry(form) {
     id: uid("e"), kid_id: kid.id, kid_name: kid.name,
     entry_date: form["f-date"].value || today(), age_label: form["f-age"].value.trim(),
     height_in: isNaN(heightVal) ? null : heightVal, weight_lb: isNaN(weightVal) ? null : weightVal,
-    interview: JSON.stringify(interview), note: form["f-note"].value.trim(), photo_id: "",
+    interview: JSON.stringify(interview), note: form["f-note"].value.trim(), photo_id: "", thumb_file_id: null,
     created_by: me.id, created_by_name: me.name, created_at: nowIso(),
   };
   try {
     const file = document.getElementById("f-photo")?.files?.[0];
-    if (file) { const up = await files.upload(file); row.photo_id = up.id; }
-    if (DB) await db(`INSERT INTO app_kid_growth_journal__entries (id, kid_id, kid_name, entry_date, age_label, height_in, weight_lb, interview, note, photo_id, created_by, created_by_name, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [row.id, row.kid_id, row.kid_name, row.entry_date, row.age_label, row.height_in, row.weight_lb, row.interview, row.note, row.photo_id, row.created_by, row.created_by_name, row.created_at]);
+    // The hub keeps a small copy with the photo, which is what the timeline draws.
+    if (file) { const up = await files.upload(file, { thumbnail: true }); row.photo_id = up.id; row.thumb_file_id = up.thumbnailId ?? null; }
+    if (DB) await db(`INSERT INTO app_kid_growth_journal__entries (id, kid_id, kid_name, entry_date, age_label, height_in, weight_lb, interview, note, photo_id, thumb_file_id, created_by, created_by_name, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [row.id, row.kid_id, row.kid_name, row.entry_date, row.age_label, row.height_in, row.weight_lb, row.interview, row.note, row.photo_id, row.thumb_file_id, row.created_by, row.created_by_name, row.created_at]);
     entries = [row, ...entries].sort((a, b) => b.entry_date.localeCompare(a.entry_date));
     closeModal(); render();
     publish("growth_journal.entry_added", { kid_id: row.kid_id, age_label: row.age_label });
@@ -234,6 +243,38 @@ async function deleteEntry(id) {
     if (DB) await db("DELETE FROM app_kid_growth_journal__entries WHERE id=?", [id]);
     entries = entries.filter(x => x.id !== id); render();
   } catch (e) { showError(e.message); }
+}
+
+/* ── photo background ── */
+async function removeBackground(id) {
+  const en = entries.find(x => x.id === id);
+  if (!en?.photo_id || cutoutBusy) return;
+  const photoId = en.photo_id;
+  cutoutBusy = id; error = ""; render();
+  try {
+    // The hub also keeps a small copy of the cutout, which the timeline draws.
+    const cut = await files.cutout(photoId, { thumbnail: true });
+    const smallId = cut.thumbnailId ?? null;
+    // Kept only if the entry still shows the photo it was made from. A cutout
+    // nothing names is reclaimed by the hub.
+    const { changed } = await db("UPDATE app_kid_growth_journal__entries SET cutout_file_id=?, cutout_thumb_file_id=? WHERE id=? AND photo_id=?",
+      [cut.id, smallId, id, photoId]);
+    if (changed) Object.assign(en, { cutout_file_id: cut.id, cutout_thumb_file_id: smallId });
+  } catch (e) { error = e.status ? cutoutRefusal(e.status, e.detail) : e.message; }
+  cutoutBusy = ""; render();
+}
+
+async function restoreBackground(id) {
+  const en = entries.find(x => x.id === id);
+  if (!en?.cutout_file_id || cutoutBusy) return;
+  cutoutBusy = id; error = ""; render();
+  try {
+    // The hub reclaims the cutout and its small copy once no row names them.
+    // The photo is untouched.
+    await db("UPDATE app_kid_growth_journal__entries SET cutout_file_id=NULL, cutout_thumb_file_id=NULL WHERE id=?", [id]);
+    Object.assign(en, { cutout_file_id: null, cutout_thumb_file_id: null });
+  } catch (e) { error = e.message; }
+  cutoutBusy = ""; render();
 }
 
 /* ── sizes ── */
@@ -296,7 +337,7 @@ function renderSizes(kid) {
 function renderEntry(en) {
   let qa = [];
   try { qa = JSON.parse(en.interview || "[]"); } catch { qa = []; }
-  const photo = en.photo_id ? `<img class="entry-photo" src="${esc(files.url(en.photo_id))}" alt="">` : `<div class="entry-photo">${glyph("sprout")}</div>`;
+  const photo = en.photo_id ? `<img class="entry-photo${en.cutout_file_id ? " cutout" : ""}" src="${esc(files.url(tilePhotoId(en)))}" alt="">` : `<div class="entry-photo">${glyph("sprout")}</div>`;
   const measures = [en.height_in ? `${glyph("ruler")} ${esc(fmtHeight(en.height_in))}` : "", en.weight_lb ? `${glyph("scales")} ${esc(String(en.weight_lb))} lb` : ""].filter(Boolean).join(" · ");
   return `
     <div class="entry">
@@ -304,7 +345,12 @@ function renderEntry(en) {
       <div class="entry-body">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
           <span class="age-badge">${esc(en.age_label || en.entry_date)}</span>
-          ${canEdit() ? `<button class="btn-ghost btn-sm btn" data-del-entry="${esc(en.id)}" style="border:0;color:var(--muted)" aria-label="Delete entry">${glyph("trash")}</button>` : ""}
+          ${canEdit() ? `<div class="entry-actions">
+            ${en.photo_id && window.__FILES_URL ? (en.cutout_file_id
+              ? `<button class="btn btn-ghost btn-sm" data-restore-bg="${esc(en.id)}" ${cutoutBusy ? "disabled" : ""}>Show photo as taken</button>`
+              : `<button class="btn btn-ghost btn-sm" data-remove-bg="${esc(en.id)}" ${cutoutBusy ? "disabled" : ""}>${cutoutBusy === en.id ? "Removing background…" : "Remove background"}</button>`) : ""}
+            <button class="btn-ghost btn-sm btn" data-del-entry="${esc(en.id)}" style="border:0;color:var(--muted)" aria-label="Delete entry">${glyph("trash")}</button>
+          </div>` : ""}
         </div>
         <div class="measure">${esc(en.entry_date)}${measures ? ` · ${measures}` : ""}</div>
         ${qa.map(x => `<div class="qa"><span class="q">${esc(x.q)}</span> <span class="a">${esc(x.a)}</span></div>`).join("")}
@@ -361,6 +407,8 @@ document.addEventListener("click", e => {
   if (t.dataset.add !== undefined) return entryModal();
   if (t.dataset.sizes !== undefined) return sizesModal();
   if (t.dataset.wishlist !== undefined) return openWishlist();
+  if (t.dataset.removeBg) return removeBackground(t.dataset.removeBg);
+  if (t.dataset.restoreBg) return restoreBackground(t.dataset.restoreBg);
   if (t.dataset.delEntry) return deleteEntry(t.dataset.delEntry);
 });
 

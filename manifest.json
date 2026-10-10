@@ -42,9 +42,21 @@
       "kind": "adult_writable"
     }
   },
+  "required_capabilities": ["image_cutout"],
   "delete_file_columns": {
     "entries": [
-      "photo_id"
+      "photo_id",
+      "thumb_file_id",
+      "cutout_file_id",
+      "cutout_thumb_file_id"
+    ]
+  },
+  "update_file_columns": {
+    "entries": [
+      "photo_id",
+      "thumb_file_id",
+      "cutout_file_id",
+      "cutout_thumb_file_id"
     ]
   },
   "member_references": {

@@ -48,6 +48,32 @@ export function searchableFields(entry, interviewText = "") {
   return [entry.note, entry.age_label, entry.entry_date, interviewText];
 }
 
+/** The picture to draw for an entry: its cutout when it has one, else the photo as taken. */
+export function shownPhotoId(en) {
+  return en?.cutout_file_id || en?.photo_id || "";
+}
+
+/**
+ * What to tell someone whose request to remove a photo's background was
+ * refused. `status` is the hub's HTTP status and `detail` its reply.
+ *
+ * A 429 is two different refusals: with a `limit` in the reply it is the
+ * household's monthly allowance, without one it is the hub's per-minute limit.
+ */
+export function cutoutRefusal(status, detail = null) {
+  if (status === 429 && typeof detail?.limit === "number") {
+    return `This month's ${detail.limit} photo cutouts are used up. The photo is kept as taken.`;
+  }
+  if (status === 429) return "Too many requests just now. Try again in a minute.";
+  if (status === 409) return "The background is already being removed. Try again in a few seconds.";
+  if (status === 402) return "Removing photo backgrounds needs an active plan.";
+  if (status === 503) return "Removing photo backgrounds is unavailable right now. Try again later.";
+  if (status === 413) return "That photo is too large to remove the background from.";
+  if (status === 415) return "The background can only be removed from a JPEG, PNG or WebP photo.";
+  if (status === 507) return "There is no storage left for a photo with its background removed.";
+  return "The background could not be removed.";
+}
+
 /** Flatten a stored interview JSON blob into plain text for searching. */
 export function interviewText(raw) {
   try {
@@ -56,4 +82,14 @@ export function interviewText(raw) {
   } catch {
     return "";
   }
+}
+
+/**
+ * The picture to draw where it is shown small: the small copy of whichever
+ * picture is shown, else that picture itself. A cutout's small copy and the
+ * photo's are different pictures, so neither stands in for the other.
+ */
+export function tilePhotoId(row) {
+  if (row?.cutout_file_id) return row.cutout_thumb_file_id || row.cutout_file_id;
+  return row?.thumb_file_id || row?.photo_id || "";
 }
