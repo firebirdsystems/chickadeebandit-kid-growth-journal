@@ -172,6 +172,9 @@ function publish(type, payload) {
   fetch(EVENTS_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source_app_id: APP_ID, type, payload }) }).catch(() => {});
 }
 function showError(msg) { error = msg; render(); }
+// The hub's own refusal of a photo (too large, type not allowed, too many
+// uploads, storage full) is shown as given; any other failure gets the app's line.
+function uploadRefused(e) { return [413, 415, 429, 507].includes(e?.status); }
 function kidById(id) { return kidByIdOf(kids, members, id); }
 function sizeFor(kidId) { return sizeForOf(sizes, kidId); }
 
@@ -237,7 +240,7 @@ async function submitEntry(form) {
     entries = [row, ...entries].sort((a, b) => b.entry_date.localeCompare(a.entry_date));
     closeModal(); render();
     publish("growth_journal.entry_added", { kid_id: row.kid_id, age_label: row.age_label });
-  } catch (e) { btn.disabled = false; btn.textContent = "Save entry"; showError(e.message); }
+  } catch (e) { btn.disabled = false; btn.textContent = "Save entry"; console.error(e); showError(uploadRefused(e) ? e.message : "Couldn’t save the entry — try again."); }
 }
 
 async function deleteEntry(id) {
@@ -251,7 +254,7 @@ async function deleteEntry(id) {
     // with no row to name them by — invisible to every view, and still billed.
     if (DB) await db("DELETE FROM app_kid_growth_journal__entries WHERE id=?", [id]);
     entries = entries.filter(x => x.id !== id); render();
-  } catch (e) { showError(e.message); }
+  } catch (e) { console.error(e); showError("Couldn’t delete the entry — try again."); }
 }
 
 /* ── photo background ── */
@@ -269,7 +272,7 @@ async function removeBackground(id) {
     const { changed } = await db("UPDATE app_kid_growth_journal__entries SET cutout_file_id=?, cutout_thumb_file_id=? WHERE id=? AND photo_id=?",
       [cut.id, smallId, id, photoId]);
     if (changed) Object.assign(en, { cutout_file_id: cut.id, cutout_thumb_file_id: smallId });
-  } catch (e) { error = e.status ? cutoutRefusal(e.status, e.detail) : e.message; }
+  } catch (e) { console.error(e); error = e.status ? cutoutRefusal(e.status, e.detail) : "Couldn’t remove the background — try again."; }
   cutoutBusy = ""; render();
 }
 
@@ -282,7 +285,7 @@ async function restoreBackground(id) {
     // The photo is untouched.
     await db("UPDATE app_kid_growth_journal__entries SET cutout_file_id=NULL, cutout_thumb_file_id=NULL WHERE id=?", [id]);
     Object.assign(en, { cutout_file_id: null, cutout_thumb_file_id: null });
-  } catch (e) { error = e.message; }
+  } catch (e) { console.error(e); error = "Couldn’t restore the background — try again."; }
   cutoutBusy = ""; render();
 }
 
@@ -313,7 +316,7 @@ async function submitSizes(form) {
       [row.kid_id, row.kid_name, row.shirt, row.pants, row.shoe, row.coat, row.other, row.notes, row.updated_by_name, row.updated_at]);
     sizes = [...sizes.filter(x => x.kid_id !== kid.id), row];
     closeModal(); render();
-  } catch (e) { btn.disabled = false; btn.textContent = "Save sizes"; showError(e.message); }
+  } catch (e) { btn.disabled = false; btn.textContent = "Save sizes"; console.error(e); showError("Couldn’t save the sizes — try again."); }
 }
 
 function openWishlist() {
