@@ -50,6 +50,8 @@
     .qa .q { color: var(--muted); }
     .qa .a { font-weight: 600; }
     .empty { text-align: center; padding: 34px 16px; color: var(--muted); }
+    .load-error { margin: 0 0 12px; padding: 10px 14px; border-radius: 10px; background: var(--hub-tint-danger, #fee2e2); color: var(--hub-tint-danger-fg, #b91c1c); font-size: 0.9rem; display: flex; gap: 10px; align-items: center; justify-content: space-between; }
+    .load-error-retry { background: none; border: 1px solid currentColor; border-radius: 8px; padding: 5px 10px; font: inherit; font-weight: 600; color: inherit; cursor: pointer; flex-shrink: 0; }
     .error { background: var(--hub-tint-danger, #fee2e2); color: var(--hub-tint-danger-fg, #b91c1c); padding: 9px 12px; border-radius: 8px; margin-bottom: 10px; font-size: .86rem; }
     .field { display: grid; gap: 4px; margin-bottom: 12px; }
     .two { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
@@ -96,6 +98,7 @@ const files = createFilesHelper(window.__FILES_URL ?? "");
 let members = [], me = null, kids = [];
 let entries = [], sizes = [];
 let selectedKid = null, error = "", modalEl = null;
+let loadFailed = false; // the first load failed: the journal is unknown, not empty
 let searchQ = "";       // in-app search (see logic.js searchableFields)
 // The entry whose photo is having its background removed or put back, if any.
 let cutoutBusy = "";
@@ -107,8 +110,8 @@ function canEdit() { return isAdult(me); }
 async function db(sql, params = []) {
   if (!DB) return { rows: [] };
   const res = await fetch(DB, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sql, params }) });
-  const json = await res.json();
-  if (json.error) throw new Error(json.error);
+  const json = await res.json().catch(() => null);
+  if (!res.ok || !json || typeof json !== "object" || json.error) throw new Error(json?.error || "Couldn’t reach the hub. Try again.");
   return json;
 }
 
@@ -120,8 +123,14 @@ async function loadMembers() {
       { id: "kid-2", name: "Sage", role: "child" },
     ];
   } else {
-    try { const res = await fetch(`${CONTEXT}?keys=family.members`); members = ((await res.json())["family.members"]) ?? []; }
-    catch { members = []; }
+    // Throws when the members cannot be read: init() shows the banner rather
+    // than "Add family members" for a family it could not see.
+    const res = await fetch(`${CONTEXT}?keys=family.members`);
+    const json = await res.json().catch(() => null);
+    if (!res.ok || !json || typeof json !== "object" || json.error) throw new Error("Couldn’t reach the hub. Try again.");
+    // A 200 can still name a key the hub failed to read: that is a failed read too.
+    if (Array.isArray(json.$errors) && json.$errors.includes("family.members")) throw new Error("Couldn’t reach the hub. Try again.");
+    members = json["family.members"] ?? [];
   }
   me = HUB_MEMBER ?? members[0] ?? { id: "guest", name: "Guest", role: "adult" };
   kids = members.filter(m => m.role === "child");
@@ -154,8 +163,8 @@ async function loadData() {
 }
 
 async function init() {
-  try { await loadMembers(); await loadData(); }
-  catch (e) { error = e.message; }
+  try { await loadMembers(); await loadData(); loadFailed = false; }
+  catch { loadFailed = true; }
   render();
 }
 
@@ -372,6 +381,10 @@ document.addEventListener("input", (e) => {
 function render() {
   const root = document.getElementById("root");
   root.className = "";
+  if (loadFailed) {
+    root.innerHTML = `<div class="topbar"><h1>${glyph("sprout")} Growth Journal</h1></div><div class="load-error" data-testid="load-error" role="alert"><span>Couldn’t load the journal.</span> <button type="button" class="load-error-retry" data-testid="load-retry">Try again</button></div>`;
+    return;
+  }
   if (!kids.length) {
     root.innerHTML = `<div class="topbar"><h1>${glyph("sprout")} Growth Journal</h1></div><div class="empty">Add family members to start a journal for each kid.</div>`;
     return;
@@ -403,6 +416,7 @@ document.addEventListener("click", e => {
   const t = e.target.closest("button, [data-kid]");
   if (!t) return;
   if (t.dataset.kid) { selectedKid = t.dataset.kid; error = ""; render(); return; }
+  if (t.dataset.testid === "load-retry") { init(); return; }
   if (t.dataset.close !== undefined) { closeModal(); return; }
   if (t.dataset.add !== undefined) return entryModal();
   if (t.dataset.sizes !== undefined) return sizesModal();
