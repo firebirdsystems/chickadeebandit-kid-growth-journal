@@ -43,21 +43,8 @@
     }
   },
   "required_capabilities": ["image_cutout"],
-  "delete_file_columns": {
-    "entries": [
-      "photo_id",
-      "thumb_file_id",
-      "cutout_file_id",
-      "cutout_thumb_file_id"
-    ]
-  },
-  "update_file_columns": {
-    "entries": [
-      "photo_id",
-      "thumb_file_id",
-      "cutout_file_id",
-      "cutout_thumb_file_id"
-    ]
+  "file_columns": {
+    "entries": { "columns": ["photo_id", "thumb_file_id", "cutout_file_id", "cutout_thumb_file_id"] }
   },
   "member_references": {
     "entries": {
@@ -77,7 +64,6 @@
     "label": "Growth Journal"
   },
   "resource_limits": {
-    "max_db_bytes": 52428800,
     "max_file_bytes": 10485760,
     "max_files_bytes": 524288000
   }
