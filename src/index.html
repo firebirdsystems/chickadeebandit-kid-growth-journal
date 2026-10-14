@@ -85,7 +85,7 @@
 import { esc, isAdult, memberColor, initial, hubConfirm, createFilesHelper, searchMatch, hubToday as today, glyph } from "/hub-sdk.js";
 import {
   QUESTIONS, SIZE_FIELDS, fmtHeight, kidById as kidByIdOf, sizeFor as sizeForOf, searchableFields, interviewText,
-  tilePhotoId, cutoutRefusal,
+  tilePhotoId, cutoutRefusal, outcomeUnknown, failureLine, uploadFailureLine,
 } from "./logic.js";
 
 const CONTEXT = window.__CONTEXT_URL ?? "";
@@ -111,7 +111,8 @@ async function db(sql, params = []) {
   if (!DB) return { rows: [] };
   const res = await fetch(DB, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sql, params }) });
   const json = await res.json().catch(() => null);
-  if (!res.ok || !json || typeof json !== "object" || json.error) throw new Error(json?.error || "Couldn’t reach the hub. Try again.");
+  // The status (and the hub's `code`) say whether a failed write may have been stored.
+  if (!res.ok || !json || typeof json !== "object" || json.error) throw Object.assign(new Error(json?.error || "Couldn’t reach the hub. Try again."), { status: res.status, code: json?.code });
   return json;
 }
 
@@ -172,9 +173,6 @@ function publish(type, payload) {
   fetch(EVENTS_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source_app_id: APP_ID, type, payload }) }).catch(() => {});
 }
 function showError(msg) { error = msg; render(); }
-// The hub's own refusal of a photo (too large, type not allowed, too many
-// uploads, storage full) is shown as given; any other failure gets the app's line.
-function uploadRefused(e) { return [413, 415, 429, 507].includes(e?.status); }
 function kidById(id) { return kidByIdOf(kids, members, id); }
 function sizeFor(kidId) { return sizeForOf(sizes, kidId); }
 
@@ -219,28 +217,81 @@ function entryModal() {
   if (fi) fi.addEventListener("change", () => { const f = fi.files?.[0]; if (!f) return; const pv = document.getElementById("photo-preview"); pv.src = URL.createObjectURL(f); pv.style.display = "block"; });
 }
 
+// The photo uploaded for the entry form that is open, kept while its entry is
+// unsaved: saving again reuses it instead of storing the same file twice.
+let pendingUpload = null; // { form, file, up }
+
 async function submitEntry(form) {
   const kid = kidById(selectedKid); if (!kid) return;
   const btn = modalEl.querySelector(".btn[type=submit]"); btn.disabled = true; btn.textContent = "Saving…";
   const interview = QUESTIONS.map((q, i) => ({ q, a: (form.querySelector(`[data-q="${i}"]`)?.value ?? "").trim() })).filter(x => x.a);
   const heightVal = parseFloat(form["f-height"].value); const weightVal = parseFloat(form["f-weight"].value);
+  // The id is the form's, minted on its first Save and sent on every retry: a
+  // try whose answer was lost may have stored the entry, and a second press
+  // must find that row rather than add another naming the same photo.
   const row = {
-    id: uid("e"), kid_id: kid.id, kid_name: kid.name,
+    id: (form.dataset.rowId ||= uid("e")), kid_id: kid.id, kid_name: kid.name,
     entry_date: form["f-date"].value || today(), age_label: form["f-age"].value.trim(),
     height_in: isNaN(heightVal) ? null : heightVal, weight_lb: isNaN(weightVal) ? null : weightVal,
     interview: JSON.stringify(interview), note: form["f-note"].value.trim(), photo_id: "", thumb_file_id: null,
     created_by: me.id, created_by_name: me.name, created_at: nowIso(),
   };
+  let up = null;
   try {
     const file = document.getElementById("f-photo")?.files?.[0];
+    // Another form, or another file picked: that upload is no longer reused.
+    // It is not deleted: an earlier save whose answer was lost may name it.
+    if (pendingUpload && (pendingUpload.form !== form || pendingUpload.file !== file)) pendingUpload = null;
     // The hub keeps a small copy with the photo, which is what the timeline draws.
-    if (file) { const up = await files.upload(file, { thumbnail: true }); row.photo_id = up.id; row.thumb_file_id = up.thumbnailId ?? null; }
-    if (DB) await db(`INSERT INTO app_kid_growth_journal__entries (id, kid_id, kid_name, entry_date, age_label, height_in, weight_lb, interview, note, photo_id, thumb_file_id, created_by, created_by_name, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [row.id, row.kid_id, row.kid_name, row.entry_date, row.age_label, row.height_in, row.weight_lb, row.interview, row.note, row.photo_id, row.thumb_file_id, row.created_by, row.created_by_name, row.created_at]);
-    entries = [row, ...entries].sort((a, b) => b.entry_date.localeCompare(a.entry_date));
-    closeModal(); render();
-    publish("growth_journal.entry_added", { kid_id: row.kid_id, age_label: row.age_label });
-  } catch (e) { btn.disabled = false; btn.textContent = "Save entry"; console.error(e); showError(uploadRefused(e) ? e.message : "Couldn’t save the entry — try again."); }
+    if (file) {
+      // Kept as is when reused, so its `unheard` flag survives the retry.
+      if (!pendingUpload) pendingUpload = { form, file, up: await files.upload(file, { thumbnail: true }) };
+      up = pendingUpload.up;
+      row.photo_id = up.id; row.thumb_file_id = up.thumbnailId ?? null;
+    }
+  } catch (e) { btn.disabled = false; btn.textContent = "Save entry"; console.error(e); showError(uploadFailureLine(e, { action: "save the entry", thing: "entry" })); return; }
+  let saved = row, note = "";
+  if (DB) {
+    try {
+      await db(`INSERT INTO app_kid_growth_journal__entries (id, kid_id, kid_name, entry_date, age_label, height_in, weight_lb, interview, note, photo_id, thumb_file_id, created_by, created_by_name, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [row.id, row.kid_id, row.kid_name, row.entry_date, row.age_label, row.height_in, row.weight_lb, row.interview, row.note, row.photo_id, row.thumb_file_id, row.created_by, row.created_by_name, row.created_at]);
+    } catch (e) {
+      console.error(e);
+      // Unknown outcome: read the entry back by the pinned id. Found means an
+      // earlier try landed and its success path never ran, so it runs now, once.
+      let stored = null;
+      let shown = e;
+      if (outcomeUnknown(e)) {
+        // The answer was lost: an entry this try stored may name the photo, so
+        // it is flagged and never deleted after this.
+        if (up && pendingUpload?.up === up) pendingUpload.unheard = true;
+        try { stored = (await db("SELECT * FROM app_kid_growth_journal__entries WHERE id = ?", [row.id])).rows?.[0] ?? null; }
+        // The id is ours: a failed read leaves the outcome unknown, so the
+        // generic line shows, never "already exists".
+        catch (readErr) { console.error(readErr); shown = new Error("entry read-back failed", { cause: e }); }
+      }
+      if (!stored) {
+        // Refused: no entry names the photo, so it goes — unless an earlier
+        // try with it went unanswered. With the answer lost it is kept, with
+        // the id, for the next Save.
+        if (!outcomeUnknown(e) && up && !pendingUpload?.unheard) { files.delete(up.id).catch(() => {}); pendingUpload = null; }
+        btn.disabled = false; btn.textContent = "Save entry";
+        showError(failureLine(shown, { action: "save the entry", thing: "entry" }));
+        return;
+      }
+      saved = stored;
+      // Stored as first entered: anything changed since is not in it. A photo
+      // picked since is named by nothing, so it goes.
+      if (["kid_id", "entry_date", "age_label", "height_in", "weight_lb", "interview", "note", "photo_id"]
+        .some((k) => String(stored[k] ?? "") !== String(row[k] ?? ""))) note = "Saved as first entered — check it and update what changed.";
+      if (up && stored.photo_id !== up.id) files.delete(up.id).catch(() => {});
+    }
+  }
+  pendingUpload = null;
+  entries = [saved, ...entries.filter((x) => x.id !== saved.id)].sort((a, b) => b.entry_date.localeCompare(a.entry_date));
+  closeModal(); render();
+  if (note) showError(note);
+  publish("growth_journal.entry_added", { kid_id: saved.kid_id, age_label: saved.age_label });
 }
 
 async function deleteEntry(id) {
@@ -254,7 +305,7 @@ async function deleteEntry(id) {
     // with no row to name them by — invisible to every view, and still billed.
     if (DB) await db("DELETE FROM app_kid_growth_journal__entries WHERE id=?", [id]);
     entries = entries.filter(x => x.id !== id); render();
-  } catch (e) { console.error(e); showError("Couldn’t delete the entry — try again."); }
+  } catch (e) { console.error(e); showError(failureLine(e, { action: "delete the entry", thing: "entry" })); }
 }
 
 /* ── photo background ── */
@@ -272,7 +323,9 @@ async function removeBackground(id) {
     const { changed } = await db("UPDATE app_kid_growth_journal__entries SET cutout_file_id=?, cutout_thumb_file_id=? WHERE id=? AND photo_id=?",
       [cut.id, smallId, id, photoId]);
     if (changed) Object.assign(en, { cutout_file_id: cut.id, cutout_thumb_file_id: smallId });
-  } catch (e) { console.error(e); error = e.status ? cutoutRefusal(e.status, e.detail) : "Couldn’t remove the background — try again."; }
+  } catch (e) { console.error(e); // The cutout's own named refusals keep their lines; the rest (403, no
+    // answer, a 400 or another 5xx, from the cutout or its UPDATE) the table's.
+    error = [402, 409, 413, 415, 429, 503, 507].includes(e.status) ? cutoutRefusal(e.status, e.detail) : failureLine(e, { action: "remove the background", thing: "entry" }); }
   cutoutBusy = ""; render();
 }
 
@@ -285,7 +338,7 @@ async function restoreBackground(id) {
     // The photo is untouched.
     await db("UPDATE app_kid_growth_journal__entries SET cutout_file_id=NULL, cutout_thumb_file_id=NULL WHERE id=?", [id]);
     Object.assign(en, { cutout_file_id: null, cutout_thumb_file_id: null });
-  } catch (e) { console.error(e); error = "Couldn’t restore the background — try again."; }
+  } catch (e) { console.error(e); error = failureLine(e, { action: "restore the background", thing: "entry" }); }
   cutoutBusy = ""; render();
 }
 
@@ -316,7 +369,7 @@ async function submitSizes(form) {
       [row.kid_id, row.kid_name, row.shirt, row.pants, row.shoe, row.coat, row.other, row.notes, row.updated_by_name, row.updated_at]);
     sizes = [...sizes.filter(x => x.kid_id !== kid.id), row];
     closeModal(); render();
-  } catch (e) { btn.disabled = false; btn.textContent = "Save sizes"; console.error(e); showError("Couldn’t save the sizes — try again."); }
+  } catch (e) { btn.disabled = false; btn.textContent = "Save sizes"; console.error(e); showError(failureLine(e, { action: "save the sizes", thing: "sizes" })); }
 }
 
 function openWishlist() {
