@@ -314,18 +314,21 @@ async function removeBackground(id) {
   if (!en?.photo_id || cutoutBusy) return;
   const photoId = en.photo_id;
   cutoutBusy = id; error = ""; render();
+  let cut = null;
   try {
     // The hub also keeps a small copy of the cutout, which the timeline draws.
-    const cut = await files.cutout(photoId, { thumbnail: true });
+    cut = await files.cutout(photoId, { thumbnail: true });
     const smallId = cut.thumbnailId ?? null;
     // Kept only if the entry still shows the photo it was made from. A cutout
     // nothing names is reclaimed by the hub.
     const { changed } = await db("UPDATE app_kid_growth_journal__entries SET cutout_file_id=?, cutout_thumb_file_id=? WHERE id=? AND photo_id=?",
       [cut.id, smallId, id, photoId]);
     if (changed) Object.assign(en, { cutout_file_id: cut.id, cutout_thumb_file_id: smallId });
-  } catch (e) { console.error(e); // The cutout's own named refusals keep their lines; the rest (403, no
-    // answer, a 400 or another 5xx, from the cutout or its UPDATE) the table's.
-    error = [402, 409, 413, 415, 429, 503, 507].includes(e.status) ? cutoutRefusal(e.status, e.detail) : failureLine(e, { action: "remove the background", thing: "entry" }); }
+  } catch (e) { console.error(e);
+    // The cutout's own named refusals keep their lines. Once the cutout is
+    // made, a failure is its UPDATE's, said with the table's lines — a 503 or
+    // 429 there is not "background removal unavailable".
+    error = !cut && [402, 409, 413, 415, 429, 503, 507].includes(e.status) ? cutoutRefusal(e.status, e.detail) : failureLine(e, { action: "remove the background", thing: "entry" }); }
   cutoutBusy = ""; render();
 }
 
