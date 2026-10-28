@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS app_kid_growth_journal__entries (
-  id TEXT PRIMARY KEY,
+  id TEXT NOT NULL PRIMARY KEY,
   kid_id TEXT NOT NULL,
   kid_name TEXT NOT NULL,
   entry_date TEXT NOT NULL,
@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS app_kid_growth_journal__entries (
 );
 
 CREATE TABLE IF NOT EXISTS app_kid_growth_journal__sizes (
-  kid_id TEXT PRIMARY KEY,
+  kid_id TEXT NOT NULL PRIMARY KEY,
   kid_name TEXT NOT NULL,
   shirt TEXT DEFAULT '',
   pants TEXT DEFAULT '',
